@@ -149,6 +149,24 @@ namespace Common
                 RemainingWork = null;
         }
 
+        public void SetTasks(WorkItemModel[] storyTasks, WorkItemModel[] testTasks)
+        {
+            Tasks = storyTasks;
+            Tests = testTasks;
+
+            var allTasks = Tasks.Concat(Tests).ToArray();
+
+            if (!allTasks.Any())
+                return;
+
+            var maxDate = allTasks.Max(t => t.ChangedDate);
+            if (maxDate > ChangedDate)
+            {
+                ChangedDate = maxDate;
+                ChangedBy = allTasks.First(t => t.ChangedDate == maxDate).ChangedBy;
+            }
+        }
+
         public override bool Equals(object obj)
         {
             var other = obj as WorkItemModel;

@@ -44,11 +44,18 @@ namespace tfs_to_devops
                 var tfsIterations = tfs2015Client.GetIterations();
                 var tfsWorkitems = tfs2015Client.GetWorkitems();
 
-                WriteInfo($"  Found {tfsIterations.Count()} iterations, {tfsAreas.Count()} areas and {tfsWorkitems.Count()} workitems / bugs");
+                WriteInfo($"  {tfsIterations.Count()} iterations");
+                WriteInfo($"  {tfsAreas.Count()} areas");
+                WriteInfo($"  Workitems:");
+
+                foreach (var kvp in tfsWorkitems)
+                {
+                    WriteInfo($"    {kvp.Key} - {kvp.Value.Length}");
+                }
             }
             catch (Exception e)
             {
-                WriteError(e.Message);
+                WriteError($"{e.Message}{Environment.NewLine}{e.StackTrace}");
             }
         }
         private static void WriteError(string errorText)

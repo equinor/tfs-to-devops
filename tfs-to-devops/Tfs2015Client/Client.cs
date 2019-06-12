@@ -34,9 +34,9 @@ namespace Tfs2015Client
             return true;
         }
 
-        public override IEnumerable<WorkItemModel> GetWorkitems()
+        public override Dictionary<string, WorkItemModel[]> GetWorkitems()
         {
-            return workItems;
+            return workItems.Where(i => i.Title != "Standard user story").GroupBy(i => i.Type).ToDictionary(g => g.Key, g => g.ToArray());
         }
 
         public override IEnumerable<Iteration> GetIterations()
@@ -57,7 +57,7 @@ namespace Tfs2015Client
 
             var workItemLinks = getAllLinks();
 
-            var query = $"SELECT * FROM WorkItems WHERE [Team Project]='{ProjectName}' AND ([Work Item Type]='Product Backlog Item' OR [Work Item Type]='Bug') AND [State] <> 'Removed' AND [State] <> 'Done'";
+            var query = $"SELECT * FROM WorkItems WHERE [Team Project]='{ProjectName}' AND [State] <> 'Removed' AND [State] <> 'Done' AND [State] <> 'Rejected'";
             var res = store.Query(query);
 
             var sourceTable = workItemLinks.GroupBy(l => l.SourceId).ToDictionary(g => g.Key, g => g.ToArray());
@@ -79,7 +79,7 @@ namespace Tfs2015Client
                     areas.Add(new Area(areaId, item.AreaPath));
             }
 
-            int i = 0;
+            setTasks();
         }
 
         private static WorkItemLinkInfo[] getAllLinks()
@@ -88,6 +88,45 @@ namespace Tfs2015Client
             var query = new Query(store, queryString);
 
             return query.RunLinkQuery();
+        }
+
+        private void setTasks()
+        {
+            var grouped = workItems.Where(i => i.Title != "Standard user story").GroupBy(i => i.Type).ToDictionary(g => g.Key, g => g.ToArray());
+            var ProductBacklogItems = grouped.ContainsKey("Product Backlog Item")
+                ? grouped["Product Backlog Item"]
+                : Enumerable.Empty<WorkItemModel>();
+
+            var Bugs = grouped.ContainsKey("Bug")
+                ? grouped["Bug"]
+                : Enumerable.Empty<WorkItemModel>();
+
+            var Tasks = grouped.ContainsKey("Task")
+                ? grouped["Task"]
+                : Enumerable.Empty<WorkItemModel>();
+
+            foreach (var item in ProductBacklogItems)
+            {
+                var taskIds = item.Sources.Where(t => t.LinkTypeId == 2).Select(l => l.TargetId).ToArray();
+                var storyTasks = Tasks.Where(t => taskIds.Contains(t.Id)).ToArray();
+
+                var testIds = item.Sources.Where(t => t.LinkTypeId == 5).Select(l => l.TargetId).ToArray();
+
+                var testTasks = grouped["Test Case"].Where(t => testIds.Contains(t.Id)).ToArray();
+
+                item.SetTasks(storyTasks, testTasks);
+            }
+
+            foreach (var item in Bugs)
+            {
+                var taskIds = item.Sources.Where(t => t.LinkTypeId == 2).Select(l => l.TargetId).ToArray();
+                var storyTasks = Tasks.Where(t => taskIds.Contains(t.Id)).ToArray();
+
+                var testIds = item.Sources.Where(t => t.LinkTypeId == 5).Select(l => l.TargetId).ToArray();
+                var testTasks = grouped["Test Case"].Where(t => testIds.Contains(t.Id)).ToArray();
+
+                item.SetTasks(storyTasks, testTasks);
+            }
         }
     }
 }
