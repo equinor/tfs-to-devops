@@ -55,23 +55,39 @@ namespace Tfs2015Client
             iterations = new List<Iteration>();
             workItems = new List<WorkItemModel>();
 
+            var workItemLinks = getAllLinks();
+
             var query = $"SELECT * FROM WorkItems WHERE [Team Project]='{ProjectName}' AND ([Work Item Type]='Product Backlog Item' OR [Work Item Type]='Bug') AND [State] <> 'Removed' AND [State] <> 'Done'";
             var res = store.Query(query);
 
-            foreach (WorkItem workItem in res)
+            var sourceTable = workItemLinks.GroupBy(l => l.SourceId).ToDictionary(g => g.Key, g => g.ToArray());
+            var targetTable = workItemLinks.GroupBy(l => l.TargetId).ToDictionary(g => g.Key, g => g.ToArray());
+
+            foreach (WorkItem item in res)
             {
-                workItems.Add(new WorkItemModel(workItem));
+                var sourceLinks = sourceTable.ContainsKey(item.Id) ? sourceTable[item.Id] : Enumerable.Empty<WorkItemLinkInfo>();
+                var targetLinks = targetTable.ContainsKey(item.Id) ? targetTable[item.Id] : Enumerable.Empty<WorkItemLinkInfo>();
 
-                var iterationId = workItem.IterationId;
-                if(iterations.Any(x => x.IterationId == iterationId) == false)
-                    iterations.Add(new Iteration(iterationId, workItem.IterationPath));
+                workItems.Add(new WorkItemModel(item, sourceLinks, targetLinks));
 
-                var areaId = workItem.AreaId;
+                var iterationId = item.IterationId;
+                if (iterations.Any(x => x.IterationId == iterationId) == false)
+                    iterations.Add(new Iteration(iterationId, item.IterationPath));
+
+                var areaId = item.AreaId;
                 if (areas.Any(x => x.AreaId == areaId) == false)
-                    areas.Add(new Area(areaId, workItem.AreaPath));
+                    areas.Add(new Area(areaId, item.AreaPath));
             }
 
             int i = 0;
+        }
+
+        private static WorkItemLinkInfo[] getAllLinks()
+        {
+            var queryString = "Select Id From WorkItemLinks WHERE Source.[System.TeamProject] = 'Statoil.Dispatch'";
+            var query = new Query(store, queryString);
+
+            return query.RunLinkQuery();
         }
     }
 }

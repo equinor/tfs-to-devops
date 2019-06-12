@@ -107,9 +107,11 @@ namespace Common
 
         private bool HasWorkItem => WorkItem != null;
 
-        public WorkItemModel(WorkItem workItem)
+        public WorkItemModel(WorkItem workItem, IEnumerable<WorkItemLinkInfo> sources, IEnumerable<WorkItemLinkInfo> targets)
         {
             WorkItem = workItem;
+            Sources = sources.ToArray();
+            Targets = targets.ToArray();
         }
 
         private void InitializeProperties()

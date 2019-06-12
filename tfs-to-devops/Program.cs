@@ -23,30 +23,37 @@ namespace tfs_to_devops
                 return;
             }
 
-            var tfsServerUrl = args[0];
-            var tfsProject = args[1];
-            var azureUrl = args[2];
-            var azureProject = args[3];
+            try
+            {
+                var tfsServerUrl = args[0];
+                var tfsProject = args[1];
+                var azureUrl = args[2];
+                var azureProject = args[3];
 
-            WriteInfo($"TFS Server URL:   {tfsServerUrl}");
-            WriteInfo($"TFS Project:      {tfsProject}");
-            WriteInfo($"Azure Server URL: {azureUrl}");
-            WriteInfo($"Azure Project:    {azureProject}");
+                WriteInfo($"TFS Server URL:   {tfsServerUrl}");
+                WriteInfo($"TFS Project:      {tfsProject}");
+                WriteInfo($"Azure Server URL: {azureUrl}");
+                WriteInfo($"Azure Project:    {azureProject}");
 
-            WriteInfo($"{Environment.NewLine}Reading from {Path.Combine(tfsServerUrl, tfsProject)}...");
+                WriteInfo($"{Environment.NewLine}Reading from {Path.Combine(tfsServerUrl, tfsProject)}...");
 
-            var azureClient = new AzureDevops.Client();
-            var tfs2015Client = new Tfs2015Client.Client(tfsServerUrl, tfsProject);
+                var azureClient = new AzureDevops.Client();
+                var tfs2015Client = new Tfs2015Client.Client(tfsServerUrl, tfsProject);
 
-            var tfsAreas = tfs2015Client.GetAreas();
-            var tfsIterations = tfs2015Client.GetIterations();
-            var tfsWorkitems = tfs2015Client.GetWorkitems();
+                var tfsAreas = tfs2015Client.GetAreas();
+                var tfsIterations = tfs2015Client.GetIterations();
+                var tfsWorkitems = tfs2015Client.GetWorkitems();
 
-            WriteInfo($"  Found {tfsIterations.Count()} iterations, {tfsAreas.Count()} areas and {tfsWorkitems.Count()} workitems / bugs");
+                WriteInfo($"  Found {tfsIterations.Count()} iterations, {tfsAreas.Count()} areas and {tfsWorkitems.Count()} workitems / bugs");
+            }
+            catch (Exception e)
+            {
+                WriteError(e.Message);
+            }
         }
         private static void WriteError(string errorText)
         {
-            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine(errorText);
             Console.ForegroundColor = foreground;
         }
