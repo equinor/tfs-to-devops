@@ -35,7 +35,7 @@ namespace tfs_to_devops
             }
             catch (Exception e)
             {
-                Logger.Error(e.Message);
+                Logger.Error($"{e.Message}{Environment.NewLine}{e.StackTrace}");
             }
         }
 
