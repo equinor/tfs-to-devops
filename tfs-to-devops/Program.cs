@@ -17,19 +17,25 @@ namespace tfs_to_devops
         static void Main(string[] args)
         {
             var ops = validateParameters(args);
-            
-            switch (ops)
+            try
             {
-                case ProgramOperation.History:
-                    performHistory(args);
-                    break;
-                case ProgramOperation.Export:
-                    performExport(args);
-                    break;
-                case ProgramOperation.Unknown:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
+                switch (ops)
+                {
+                    case ProgramOperation.History:
+                        performHistory(args);
+                        break;
+                    case ProgramOperation.Export:
+                        performExport(args);
+                        break;
+                    case ProgramOperation.Unknown:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(ops.ToString());
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e.Message);
             }
         }
 
@@ -50,33 +56,12 @@ namespace tfs_to_devops
                 Logger.Info($"Azure Project:    {azureProject}");
 
                 var azureClient = new AzureDevopsClient.Client(azureUrl, azureProject);
-                if (!azureClient.Connect())
-                {
-                    Logger.Error($"Unable to connect to {azureProject} on {azureUrl}");
-                    return;
-                }
+                azureClient.Connect();
 
                 var tfs2015Client = new Tfs2015Client.Client(tfsServerUrl, tfsProject);
-                if (!tfs2015Client.Connect())
-                {
-                    Logger.Error($"Unable to connect to {tfsProject} on {tfsServerUrl}");
-                    return;
-                }
-                
+                tfs2015Client.Connect();
+
                 tfs2015Client.Initialize();
-
-                //var tfsAreas = tfs2015Client.GetAreas();
-                //var tfsIterations = tfs2015Client.GetIterations();
-                //var tfsWorkitems = tfs2015Client.GetWorkitems();
-
-                //Logger.Info($"  {tfsIterations.Count()} iterations");
-                //Logger.Info($"  {tfsAreas.Count()} areas");
-                //Logger.Info($"  Workitems:");
-
-                //foreach (var kvp in tfsWorkitems)
-                //{
-                //    Logger.Info($"    {kvp.Key} - {kvp.Value.Length}");
-                //}
             }
             catch (Exception e)
             {
@@ -89,15 +74,22 @@ namespace tfs_to_devops
             Logger.Info($"Export changeset history{Environment.NewLine}--------------------------------------------------------------------------------");
 
             var tfsServerUrl = args[1];
-            var tfsBranch = args[2];
-            var dateFrom = DateTime.Parse(args[3]);
-            var dateTo = DateTime.Parse(args[4]);
-            var path = args[5];
+            var tfsProject = args[2];
+            var tfsBranch = args[3];
+            var dateFrom = DateTime.Parse(args[4]);
+            var dateTo = DateTime.Parse(args[5]);
+            var path = args[6];
 
             Logger.Info($"TFS Server URL: {tfsServerUrl}");
+            Logger.Info($"TFS project:    {tfsProject}");
             Logger.Info($"TFS branch:     {tfsBranch}");
-            Logger.Info($"Date from-to:   {dateFrom.Date} - {dateTo.Date}");
+            Logger.Info($"Date from-to:   {dateFrom.ToShortDateString()} - {dateTo.ToShortDateString()}");
             Logger.Info($"Output path:    {path}");
+
+            var tfs2015Client = new Tfs2015Client.Client(tfsServerUrl, tfsProject);
+            tfs2015Client.Connect();
+
+            tfs2015Client.ExportHistory(tfsBranch, dateFrom, dateTo, path);
         }
 
         private static ProgramOperation validateParameters(string[] args)
@@ -122,11 +114,12 @@ namespace tfs_to_devops
 
         private static bool validateHistoryParameters(string[] args)
         {
-            if (args.Length == 6) return true;
+            if (args.Length == 7) return true;
 
             Logger.Error($"Invalid or missing paramaters{Environment.NewLine}Usage: tfs-to-devops history [TfsUrl] [TfsBranchPath] [DateFrom] [DateTo] [Path]");
             Logger.Error($"  [TfsUrl]   The URL used in Visual Studio, excluding project root");
-            Logger.Error($"  [TfsBranchPath] The root (project) that holds backlogs and workitems");
+            Logger.Error($"  [TfsProject] The root (project) that holds branches for history export");
+            Logger.Error($"  [TfsBranchPath] Path to branch, excluding project");
             Logger.Error($"  [DateFrom DD.MM.YYYY] The Azure organization URL (https://dev.azure.com/<Organization>)");
             Logger.Error($"  [DateTo DD.MM.YYYY] Project found under organization in Azure server URL");
             Logger.Error($"  [Path] Path to store changesets");

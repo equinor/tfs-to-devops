@@ -7,7 +7,11 @@ using Microsoft.VisualStudio.Services.Client;
 using Microsoft.VisualStudio.Services.Common;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.TeamFoundation.VersionControl.Client;
 using WorkItem = Microsoft.TeamFoundation.WorkItemTracking.Client.WorkItem;
 
 namespace Tfs2015Client
@@ -34,6 +38,64 @@ namespace Tfs2015Client
         public override Dictionary<string, WorkItemModel[]> GetWorkitems()
         {
             return workItems.Where(i => i.Title != "Standard user story").GroupBy(i => i.Type).ToDictionary(g => g.Key, g => g.ToArray());
+        }
+
+        public override void ExportHistory(string branchPath, DateTime dateFrom, DateTime dateTo, string path)
+        {
+            Logger.Info($"{this.GetType()} fetching changesets");
+
+            path = Path.Combine(path, branchPath);
+
+            var versionService = project.GetService<VersionControlServer>();
+            var qparms = new QueryHistoryParameters($"$/{ProjectName}/{branchPath}", RecursionType.Full)
+            {
+                VersionStart = new DateVersionSpec(dateFrom),
+                VersionEnd = new DateVersionSpec(dateTo),
+                SlotMode = false,
+                IncludeChanges = true
+            };
+
+            var changesets = versionService.QueryHistory(qparms)?.OrderBy(x => x.CreationDate).ToList();
+
+            if (changesets == null)
+            {
+                Logger.Error($"{this.GetType()} unable to get changesets, aborting");
+                return;
+            }
+
+            Logger.Info($"{this.GetType()} found {changesets.Count()} changesets");
+
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
+
+            Logger.Info($"{this.GetType()} creating output folder (deleting of not empty)"); 
+            Directory.CreateDirectory(path);
+
+            foreach (var changeset in changesets)
+            {
+                Logger.Info($"{this.GetType()} fetching details for {changeset.ChangesetId}");
+                var changeDir = Path.Combine(path, changeset.ChangesetId.ToString());
+
+                Directory.CreateDirectory(changeDir);
+                Thread.Sleep(100);
+
+                changeset.SaveToFile(Path.Combine(changeDir, changeset.ChangesetId.ToString() + ".xml"));
+
+                var changes = versionService.GetChangesForChangeset(changeset.ChangesetId, true, Int32.MaxValue, null, null)?.Where(c =>
+                    c.Item.ItemType == Microsoft.TeamFoundation.VersionControl.Client.ItemType.File).ToList();
+                Logger.Info($"{this.GetType()} downloading {changes?.Count() ?? 0} changed file(s)...");
+
+                if (changes?.Any() == false)
+                    continue;
+
+                Parallel.ForEach(changes, (change) =>
+                {
+                    var filePath = Path.Combine(changeDir, change.Item.ServerItem.CleanFilename(branchPath));
+                    change.Item.DownloadFile(filePath);
+                });
+            }
         }
 
         public override bool Connect()
