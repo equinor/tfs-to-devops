@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.TeamFoundation.Diff;
 using Microsoft.TeamFoundation.VersionControl.Client;
 using WorkItem = Microsoft.TeamFoundation.WorkItemTracking.Client.WorkItem;
 
@@ -76,7 +77,7 @@ namespace Tfs2015Client
             foreach (var changeset in changesets)
             {
                 Logger.Info($"{this.GetType()} fetching details for {changeset.ChangesetId}");
-                var changeDir = Path.Combine(path, changeset.ChangesetId.ToString());
+                var changeDir = Path.Combine(path, $"{changeset.CreationDate:yyy-MM-dd} - {changeset.ChangesetId}");
 
                 Directory.CreateDirectory(changeDir);
                 Thread.Sleep(100);
@@ -84,16 +85,35 @@ namespace Tfs2015Client
                 changeset.SaveToFile(Path.Combine(changeDir, changeset.ChangesetId.ToString() + ".xml"));
 
                 var changes = versionService.GetChangesForChangeset(changeset.ChangesetId, true, Int32.MaxValue, null, null)?.Where(c =>
-                    c.Item.ItemType == Microsoft.TeamFoundation.VersionControl.Client.ItemType.File).ToList();
-                Logger.Info($"{this.GetType()} downloading {changes?.Count() ?? 0} changed file(s)...");
+                    c.Item.ItemType == ItemType.File).ToList();
+                Logger.Info($"{this.GetType()} \tdownloading {changes?.Count() ?? 0} changed file(s) including previous version...");
 
-                if (changes?.Any() == false)
+                if (changes == null || changes?.Any() == false)
                     continue;
 
                 Parallel.ForEach(changes, (change) =>
                 {
+                    var changesetlist = (IEnumerable<Changeset>)versionService.QueryHistory(change.Item.ServerItem, VersionSpec.Latest, 0,
+                        RecursionType.None, null, null, new ChangesetVersionSpec(change.Item.ChangesetId), int.MaxValue, true, false);
+
+                    changesetlist = changesetlist.OrderByDescending(x => x.ChangesetId).ToList();
+
+                    if (!change.Item.ServerItem.Contains(branchPath))
+                        return;
+
                     var filePath = Path.Combine(changeDir, change.Item.ServerItem.CleanFilename(branchPath));
-                    change.Item.DownloadFile(filePath);
+                    var fileName = Path.GetFileName(filePath);
+
+                    for (var i = 0; i < (changesetlist.Count() > 2 ? 2 : changesetlist.Count()); i++)
+                    {
+                        var hist = changesetlist.ElementAt(i);
+                        var historicChanges = hist.Changes.Where(x => x.Item.ServerItem.Contains(fileName)).ToList();
+                        if (!historicChanges.Any()) continue;
+
+                        var historicChange = historicChanges.First();
+                        var historicFilePath = filePath + "." + historicChange.Item.ChangesetId;
+                        historicChange.Item.DownloadFile(historicFilePath);
+                    }
                 });
             }
         }

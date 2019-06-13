@@ -11,6 +11,12 @@ using Microsoft.TeamFoundation.Client;
 
 namespace Common
 {
+    public class SerializableChange
+    {
+        public string ChangeType { get; set; }
+        public string ServerItem { get; set; }
+        public SerializableChange() { }
+    }
 
     public class SerializableChangeset
     {
@@ -21,6 +27,7 @@ namespace Common
         public string Comment { get; set; }
         public string Committer { get; set; }
         public string CommitterDisplayName { get; set; }
+        public List<SerializableChange> ChangedFiles { get; set; }
         public SerializableChangeset(Microsoft.TeamFoundation.VersionControl.Client.Changeset c)
         {
             ChangesetId = c.ChangesetId;
@@ -30,6 +37,8 @@ namespace Common
             Comment = c.Comment;
             Committer = c.Committer;
             CommitterDisplayName = c.CommitterDisplayName;
+            ChangedFiles = new List<SerializableChange>();
+            ChangedFiles.AddRange(c.Changes.Select(x => new SerializableChange(){ ChangeType = x.ChangeType.ToString(), ServerItem = x.Item.ServerItem}));
         }
 
         public SerializableChangeset() { }
