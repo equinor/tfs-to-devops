@@ -12,7 +12,7 @@ using WorkItem = Microsoft.TeamFoundation.WorkItemTracking.Client.WorkItem;
 
 namespace Tfs2015Client
 {
-    public class Client : BaseClient
+    public class Client : ExportClient
     {
         static TfsTeamProjectCollection project;
         static WorkItemStore store;
@@ -22,10 +22,7 @@ namespace Tfs2015Client
 
         public Client(string serverUrl, string projectName) : base(serverUrl, projectName)
         {
-            project = new TfsTeamProjectCollection(Url);
-            store = new WorkItemStore(project);
-
-            Initialize();
+            
         }
 
         public sealed override bool Initialize()
@@ -37,6 +34,25 @@ namespace Tfs2015Client
         public override Dictionary<string, WorkItemModel[]> GetWorkitems()
         {
             return workItems.Where(i => i.Title != "Standard user story").GroupBy(i => i.Type).ToDictionary(g => g.Key, g => g.ToArray());
+        }
+
+        public override bool Connect()
+        {
+            try
+            {
+                project = new TfsTeamProjectCollection(Url);
+                store = new WorkItemStore(project);
+
+                Logger.Info($"{this.GetType()} connected {store != null}");
+
+                return store != null;
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e.Message);
+            }
+
+            return false;
         }
 
         public override IEnumerable<Iteration> GetIterations()
@@ -51,14 +67,18 @@ namespace Tfs2015Client
 
         private void InitializeRemote()
         {
+            Logger.Info($"{this.GetType()} reading from server");
             areas = new List<Area>();
             iterations = new List<Iteration>();
             workItems = new List<WorkItemModel>();
 
             var workItemLinks = getAllLinks();
-
+            
             var query = $"SELECT * FROM WorkItems WHERE [Team Project]='{ProjectName}' AND [State] <> 'Removed' AND [State] <> 'Done' AND [State] <> 'Rejected'";
             var res = store.Query(query);
+
+            Logger.Info($"{this.GetType()} Found {res.Count} workitems");
+            Logger.Info($"{this.GetType()} Found {workItemLinks.Length} links");
 
             var sourceTable = workItemLinks.GroupBy(l => l.SourceId).ToDictionary(g => g.Key, g => g.ToArray());
             var targetTable = workItemLinks.GroupBy(l => l.TargetId).ToDictionary(g => g.Key, g => g.ToArray());
@@ -79,6 +99,8 @@ namespace Tfs2015Client
                     areas.Add(new Area(areaId, item.AreaPath));
             }
 
+            Logger.Info($"{this.GetType()} Found {areas.Count} areas");
+            Logger.Info($"{this.GetType()} Found {iterations.Count} iterations");
             setTasks();
         }
 

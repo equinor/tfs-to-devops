@@ -182,7 +182,10 @@
   <ItemGroup>
     <Compile Include="Area.cs" />
     <Compile Include="BaseClient.cs" />
+    <Compile Include="ImportClient.cs" />
+    <Compile Include="ExportClient.cs" />
     <Compile Include="Iteration.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WorkItemModel.cs" />
   </ItemGroup>
