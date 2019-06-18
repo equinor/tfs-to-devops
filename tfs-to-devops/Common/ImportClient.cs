@@ -10,9 +10,9 @@ namespace Common
     {
         public abstract bool Initialize();
         public abstract Dictionary<string, WorkItemModel[]> GetWorkitems();
-        public abstract void AddIteration(Iteration iteration);
-        public abstract void AddArea(Area area);
-        public abstract void AddWorkitems(IEnumerable<WorkItemModel> workitems);
+        public abstract void CreateIterations(IEnumerable<Iteration> iterations);
+        public abstract void CreateAreas(IEnumerable<Area> areas);
+        public abstract void CreateWorkitems(IEnumerable<WorkItemModel> workitems);
         protected ImportClient(string serverUrl, string projectName)
             : base(serverUrl, projectName) { }
     }

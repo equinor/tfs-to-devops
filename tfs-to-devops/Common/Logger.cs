@@ -36,7 +36,7 @@ namespace Common
             }
             else if (infoText.Contains("AzureDevopsClient"))
             {
-                Console.ForegroundColor = ConsoleColor.Blue;
+                Console.ForegroundColor = ConsoleColor.Cyan;
             }
             else
             {

@@ -50,18 +50,24 @@ namespace tfs_to_devops
 
                 Logger.Info($"Export backlogs and workitems{Environment.NewLine}--------------------------------------------------------------------------------");
 
-                Logger.Info($"TFS Server URL:   {tfsServerUrl}");
-                Logger.Info($"TFS Project:      {tfsProject}");
-                Logger.Info($"Azure Server URL: {azureUrl}");
-                Logger.Info($"Azure Project:    {azureProject}");
+                Logger.Info($"TFS Server URL:     {tfsServerUrl}");
+                Logger.Info($"TFS Project:        {tfsProject}");
+                Logger.Info($"Azure Server URL:   {azureUrl}");
+                Logger.Info($"Azure Organization: TODO");
+                Logger.Info($"Azure Project:      TODO");
+
+                azureUrl = @"https://dev.azure.com/DispatchMigrationTest";
+                azureProject = "DispatchGit";
 
                 var azureClient = new AzureDevopsClient.Client(azureUrl, azureProject);
                 azureClient.Connect();
+                azureClient.Initialize();
 
                 var tfs2015Client = new Tfs2015Client.Client(tfsServerUrl, tfsProject);
                 tfs2015Client.Connect();
-
                 tfs2015Client.Initialize();
+                
+                azureClient.CreateAreas(tfs2015Client.GetAreas());
             }
             catch (Exception e)
             {
