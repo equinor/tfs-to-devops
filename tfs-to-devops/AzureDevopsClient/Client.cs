@@ -39,64 +39,111 @@ namespace AzureDevopsClient
         }
 
         public override void CreateIterations(IEnumerable<Iteration> iterations)
-        {
-            
+        {   
+            var groups = iterations.GroupBy(x => x.IterationPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.Select(x => x.IterationPath).OrderBy(x => x).ToList()).OrderBy(d => d.Key);
+            CreateAndSaveClassificationNodes(groups, TreeNodeStructureType.Iteration);
         }
 
         public override void CreateAreas(IEnumerable<Area> areas)
         {
-            var projectId = projectClient.GetProject(ProjectName).Result.Id;
-            var groups = areas.GroupBy(x => x.AreaPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.ToList()).OrderBy(d => d.Key);
-            var azureAreas = new List<WorkItemClassificationNode>();
+            var groups = areas.GroupBy(x => x.AreaPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.Select(x => x.AreaPath).OrderBy(x => x).ToList()).OrderBy(d => d.Key);
+            CreateAndSaveClassificationNodes(groups, TreeNodeStructureType.Area);
+        }
 
-            foreach (var areaGroup in groups)
+        private void CreateAndSaveClassificationNodes(IOrderedEnumerable<KeyValuePair<int, List<string>>> groups, TreeNodeStructureType nodeType)
+        {
+            var azureClassificationNodes = new List<WorkItemClassificationNode>();
+            var projectId = projectClient.GetProject(ProjectName).Result.Id;
+            foreach (var nodeGroup in groups)
             {
-                if (areaGroup.Key == 0)
+                if (nodeGroup.Key == 0)
                 {
                     // Root nodes
-                    foreach (var rootArea in areaGroup.Value)
+                    foreach (var rootArea in nodeGroup.Value)
                     {
-                        azureAreas.Add(new WorkItemClassificationNode()
+                        azureClassificationNodes.Add(new WorkItemClassificationNode()
                         {
-                            Name = rootArea.AreaPath,
-                            StructureType = TreeNodeStructureType.Area
+                            Name = rootArea,
+                            StructureType = nodeType
                         });
                     }
                 }
                 else
                 {
                     // These are child nodes
-                    foreach (var childArea in areaGroup.Value)
+                    foreach (var childArea in nodeGroup.Value)
                     {
                         // Split the path and start finding out where to put the area
-                        var splitPath = childArea.AreaPath.Split('\\');
+                        var splitPath = childArea.Split('\\');
                         var pathEnd = splitPath[splitPath.Length - 1];
                         var pathStart = splitPath[0];
 
-                        WorkItemClassificationNode rootArea = azureAreas.Single(x => x.Name == pathStart);
+                        var rootArea = azureClassificationNodes.SingleOrDefault(x => x.Name == pathStart);
+                        if (rootArea == null)
+                        {
+                            Logger.Warning($"{GetType()} Root area not found, creating it anyway {pathStart}");
+                            azureClassificationNodes.Add(new WorkItemClassificationNode()
+                            {
+                                Name = pathStart,
+                                StructureType = nodeType
+                            });
+
+                            rootArea = azureClassificationNodes.SingleOrDefault(x => x.Name == pathStart);
+                        }
 
                         for (int i = 1; i < splitPath.Length - 1; i++)
                         {
-                            rootArea = rootArea.Children.Single(x => x.Name == splitPath[i]);
+                            rootArea = rootArea.Children.SingleOrDefault(x => x.Name == splitPath[i]);
+                            if (rootArea == null)
+                            {
+                                var previousRoot =
+                                    azureClassificationNodes.SingleOrDefault(x => x.Name == splitPath[i - 1]);
+
+                                Logger.Warning($"{GetType()} Child area not found, creating {splitPath[i]} under {previousRoot?.Name}");
+
+                                updateWithChildNode(ref previousRoot, splitPath[i], nodeType);
+                                rootArea = previousRoot.Children.SingleOrDefault(x => x.Name == splitPath[i]);
+                            }
                         }
 
-                        var children = rootArea.Children?.ToList() ?? new List<WorkItemClassificationNode>();
-                        children.Add(new WorkItemClassificationNode()
-                        {
-                            Name = pathEnd,
-                            StructureType = TreeNodeStructureType.Area
-                        });
+                        updateWithChildNode(ref rootArea, pathEnd, nodeType);
+                        //var children = rootArea.Children?.ToList() ?? new List<WorkItemClassificationNode>();
+                        //children.Add(new WorkItemClassificationNode()
+                        //{
+                        //    Name = pathEnd,
+                        //    StructureType = nodeType
+                        //});
 
-                        rootArea.Children = children.ToArray();
-                        rootArea.HasChildren = true;
+                        //rootArea.Children = children.ToArray();
+                        //rootArea.HasChildren = true;
                     }
                 }
             }
 
-            foreach (var classificationNode in azureAreas)
+            foreach (var classificationNode in azureClassificationNodes)
             {
-                saveClassificationNodesRecursive(projectId, classificationNode, TreeStructureGroup.Areas);
+                var treeStructureGroup = TreeStructureGroup.Iterations;
+                if (nodeType == TreeNodeStructureType.Area)
+                    treeStructureGroup = TreeStructureGroup.Areas;
+
+                saveClassificationNodesRecursive(projectId, classificationNode, treeStructureGroup);
             }
+        }
+
+        private WorkItemClassificationNode updateWithChildNode(ref WorkItemClassificationNode parent, string childName,
+            TreeNodeStructureType childType)
+        {
+            var children = parent.Children?.ToList() ?? new List<WorkItemClassificationNode>();
+            children.Add(new WorkItemClassificationNode()
+            {
+                Name = childName,
+                StructureType = childType
+            });
+
+            parent.Children = children.ToArray();
+            parent.HasChildren = true;
+
+            return parent;
         }
 
         private void saveClassificationNodesRecursive(Guid projectId, WorkItemClassificationNode classificationNode, TreeStructureGroup structureGroup, string pathToParent = null)
