@@ -69,6 +69,7 @@ namespace tfs_to_devops
                 
                 azureClient.CreateAreas(tfs2015Client.GetAreas());
                 azureClient.CreateIterations(tfs2015Client.GetIterations());
+                azureClient.CreateWorkitems(tfs2015Client.GetWorkitems());
             }
             catch (Exception e)
             {

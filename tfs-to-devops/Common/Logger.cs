@@ -24,7 +24,7 @@ namespace Common
 
         public static void Warning(string warningText)
         {
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(warningText);
             Console.ForegroundColor = Foreground;
         }

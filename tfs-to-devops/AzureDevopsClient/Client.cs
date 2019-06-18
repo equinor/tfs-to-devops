@@ -38,6 +38,11 @@ namespace AzureDevopsClient
             throw new NotImplementedException();
         }
 
+        public override void CreateWorkitems(Dictionary<string, WorkItemModel[]> workitems)
+        {
+
+        }
+
         public override void CreateIterations(IEnumerable<Iteration> iterations)
         {   
             var groups = iterations.GroupBy(x => x.IterationPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.Select(x => x.IterationPath).OrderBy(x => x).ToList()).OrderBy(d => d.Key);
@@ -107,15 +112,6 @@ namespace AzureDevopsClient
                         }
 
                         updateWithChildNode(ref rootArea, pathEnd, nodeType);
-                        //var children = rootArea.Children?.ToList() ?? new List<WorkItemClassificationNode>();
-                        //children.Add(new WorkItemClassificationNode()
-                        //{
-                        //    Name = pathEnd,
-                        //    StructureType = nodeType
-                        //});
-
-                        //rootArea.Children = children.ToArray();
-                        //rootArea.HasChildren = true;
                     }
                 }
             }
@@ -171,11 +167,6 @@ namespace AzureDevopsClient
             {
                 saveClassificationNodesRecursive(projectId, classificationNodeChild, structureGroup, newPathToParent);
             }
-        }
-
-        public override void CreateWorkitems(IEnumerable<WorkItemModel> workitems)
-        {
-            throw new NotImplementedException();
         }
 
         public override bool Connect()

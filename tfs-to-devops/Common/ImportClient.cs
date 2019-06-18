@@ -12,7 +12,7 @@ namespace Common
         public abstract Dictionary<string, WorkItemModel[]> GetWorkitems();
         public abstract void CreateIterations(IEnumerable<Iteration> iterations);
         public abstract void CreateAreas(IEnumerable<Area> areas);
-        public abstract void CreateWorkitems(IEnumerable<WorkItemModel> workitems);
+        public abstract void CreateWorkitems(Dictionary<string, WorkItemModel[]> workitems);
         protected ImportClient(string serverUrl, string projectName)
             : base(serverUrl, projectName) { }
     }
