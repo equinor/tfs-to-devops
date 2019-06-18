@@ -30,11 +30,6 @@ namespace AzureDevopsClient
 
         public override bool Initialize()
         {
-            //var project = projectClient.GetProject(ProjectName).Result;
-            //var workClient = connection.GetClient<WorkHttpClient>();
-            //workClient.PostTeamIterationAsync(new TeamSettingsIteration() {Name = "Bjarte"} , )
-            //var teamSettings = workClient.GetTeamSettingsAsync(new TeamContext(project.Id, project.DefaultTeam.Id)).Result;
-            
             return true;
         }
 
@@ -45,15 +40,13 @@ namespace AzureDevopsClient
 
         public override void CreateIterations(IEnumerable<Iteration> iterations)
         {
-            throw new NotImplementedException();
+            
         }
-        List<AzureAreaWrapper> azureAreas = new List<AzureAreaWrapper>();
+
         public override void CreateAreas(IEnumerable<Area> areas)
         {
             var projectId = projectClient.GetProject(ProjectName).Result.Id;
-
             var groups = areas.GroupBy(x => x.AreaPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.ToList()).OrderBy(d => d.Key);
-
             var azureAreas = new List<WorkItemClassificationNode>();
 
             foreach (var areaGroup in groups)
@@ -68,8 +61,6 @@ namespace AzureDevopsClient
                             Name = rootArea.AreaPath,
                             StructureType = TreeNodeStructureType.Area
                         });
-
-                        Logger.Info($"{GetType()} Added root area {rootArea}");
                     }
                 }
                 else
@@ -93,10 +84,9 @@ namespace AzureDevopsClient
                         children.Add(new WorkItemClassificationNode()
                         {
                             Name = pathEnd,
-                            StructureType =  TreeNodeStructureType.Area
+                            StructureType = TreeNodeStructureType.Area
                         });
 
-                        Logger.Info($"{GetType()} found area {childArea.AreaPath}");
                         rootArea.Children = children.ToArray();
                         rootArea.HasChildren = true;
                     }
@@ -105,151 +95,35 @@ namespace AzureDevopsClient
 
             foreach (var classificationNode in azureAreas)
             {
-                saveClassificationNodesRecursive(projectId, classificationNode);
-
-
-
-                //try
-                //{
-                //    var result = workClient.CreateOrUpdateClassificationNodeAsync(
-                //        classificationNode,
-                //        projectId.ToString(),
-                //        TreeStructureGroup.Areas).Result;
-
-                //    if (result != null)
-                //        Logger.Info($"{GetType()} Saved all areas...");
-                //    else
-                //    {
-                //        Logger.Error($"{GetType()} Something went wrong");
-                //    }
-                //}
-                //catch (Exception e)
-                //{
-                //    Logger.Error($"{GetType()} Failed saving areas: {e.Message}");
-                //}
+                saveClassificationNodesRecursive(projectId, classificationNode, TreeStructureGroup.Areas);
             }
-            return;
         }
 
-        private void saveClassificationNodesRecursive(Guid projectId, WorkItemClassificationNode classificationNode, string pathToParent = null)
+        private void saveClassificationNodesRecursive(Guid projectId, WorkItemClassificationNode classificationNode, TreeStructureGroup structureGroup, string pathToParent = null)
         {
             try
             {
                 var result = workClient.CreateOrUpdateClassificationNodeAsync(
                     classificationNode,
                     projectId.ToString(),
-                    TreeStructureGroup.Areas,
+                    structureGroup,
                     pathToParent).Result;
-
-                if (classificationNode.HasChildren == true)
-                {
-                    var newPathToParent = $"{pathToParent}\\{classificationNode.Name}";
-                    foreach (var classificationNodeChild in classificationNode.Children)
-                    {
-                        saveClassificationNodesRecursive(projectId, classificationNodeChild, newPathToParent);
-                    }
-                }
-            } 
-            catch (Exception e)
-            {
-                Logger.Error($"{GetType()} Failed saving areas: {e.Message}");
-            }
-        }
-        private void addChildToExistingArea(AzureAreaWrapper existingArea, Area area)
-        {
-            //var parent = azureAreas.FirstOrDefault(x => x.AreaPathFromTfs == existingArea.AreaPathFromTfs);
-            //var children = parent.AreaNode.Children ?? new List<WorkItemClassificationNode>();
-            //children.AddRange()
-
-
-        }
-
-        private WorkItemClassificationNode createAreaRecursive(List<string> areaPaths, WorkItemClassificationNode parentNode, Guid projectId)
-        {
-            
-
-            //if (azureAreas.Contains(x => x.AreaPathFromTfs == ""))
-            //{
                 
-            //}
-
-
-
-            var node = new WorkItemClassificationNode();
-            var isAddingChildArea = false;
-            if (parentNode == null)
-            {
-                node = new WorkItemClassificationNode()
-                {
-                    Name = areaPaths[0],
-                    StructureType = TreeNodeStructureType.Area
-                };
+                Logger.Info($"{GetType()} Saved type {structureGroup} '{pathToParent}\\{classificationNode.Name}'");
             }
-            else
+            catch (Exception)
             {
-                node = parentNode;
-                var existingChildren = node.Children?.ToList() ?? new List<WorkItemClassificationNode>();
-                existingChildren.Add(new WorkItemClassificationNode()
-                {
-                    Name = areaPaths[0],
-                    StructureType = TreeNodeStructureType.Area
-                });
-
-                node.Children = existingChildren;
-                isAddingChildArea = true;
+                // Intentionally eating the e
+                Logger.Error($"{GetType()} Failed saving type {structureGroup} '{pathToParent}\\{classificationNode.Name}', does it already exist?");
             }
 
-            var newParent = getOrCreateArea(node, projectId, isAddingChildArea);
+            if (classificationNode.HasChildren != true) return;
 
-            if (areaPaths.Count > 1)
+            var newPathToParent = $"{pathToParent}\\{classificationNode.Name}";
+            foreach (var classificationNodeChild in classificationNode.Children)
             {
-                var newPaths = areaPaths.GetRange(1, areaPaths.Count - 1);
-                return createAreaRecursive(newPaths, newParent, projectId);
+                saveClassificationNodesRecursive(projectId, classificationNodeChild, structureGroup, newPathToParent);
             }
-
-            return newParent;
-        }
-
-        private WorkItemClassificationNode getAreaNode(string nodeName, Guid projectId)
-        {
-            var result = workClient.GetClassificationNodeAsync(projectId, TreeStructureGroup.Areas, nodeName).Result;
-            if (result == null)
-            {
-                return getOrCreateArea(
-                    new WorkItemClassificationNode() {Name = nodeName, StructureType = TreeNodeStructureType.Area},
-                    projectId);
-            }
-
-            return result;
-        }
-
-
-        private WorkItemClassificationNode getOrCreateArea(WorkItemClassificationNode classificationNode, Guid projectId, bool isChildArea = false)
-        {
-            if (!isChildArea)
-            {
-                try
-                {
-                    var existingNode = workClient.GetClassificationNodeAsync(projectId, TreeStructureGroup.Areas, classificationNode.Name)?.Result;
-                    if (existingNode != null)
-                        return existingNode;
-                }
-                catch (Exception)
-                {
-                    // Intentionally empty
-                }
-            }
-
-            var result = workClient.CreateOrUpdateClassificationNodeAsync( 
-                classificationNode,
-                projectId.ToString(),
-                TreeStructureGroup.Areas).Result;
-
-            Logger.Info(isChildArea
-                ? $"{GetType()} Added project area {result.Name}\\{classificationNode.Children.Last().Name}"
-                : $"{GetType()} Created project area {result.Name}");
-            
-            return result;
         }
 
         public override void CreateWorkitems(IEnumerable<WorkItemModel> workitems)
@@ -257,21 +131,20 @@ namespace AzureDevopsClient
             throw new NotImplementedException();
         }
 
-
         public override bool Connect()
         {
             try
             {
                 credentials = new VssClientCredentials();
                 credentials.Storage = new VssClientCredentialStorage();
-                
+
                 connection = new VssConnection(Url, credentials);
 
                 teamClient = connection.GetClient<TeamHttpClient>();
                 projectClient = connection.GetClient<ProjectHttpClient>();
                 workClient = connection.GetClient<WorkItemTrackingHttpClient>();
 
-                
+
                 Logger.Info($"{this.GetType()} connected, authenticated: {connection.HasAuthenticated}");
                 return true;
             }
