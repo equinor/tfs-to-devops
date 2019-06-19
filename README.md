@@ -2,6 +2,7 @@
 Migration tool that accomplishes two tasks relevant for moving from TFS to Azure DevOps
 
 ## Export workitems, backlogs, iterations etc
+In progress...
 ```bash
 tfs-to-devops export [TfsUrl] [TfsProject] [AzureUrl] [AzureProject]  
 ```
