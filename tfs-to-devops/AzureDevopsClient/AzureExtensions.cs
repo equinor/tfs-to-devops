@@ -39,6 +39,29 @@ namespace AzureDevopsClient
             return patchDocument;
         }
 
+        public static JsonPatchDocument ToPatchDocument(this AttachmentReference attachment)
+        {
+            var patchDocument = new JsonPatchDocument()
+            {
+                new JsonPatchOperation
+                {
+                    Operation = Operation.Add,
+                    Path = "/relations/-",
+                    Value = new
+                    {
+                        rel = "AttachedFile",
+                        url = attachment.Url,
+                        attributes = new
+                        {
+                            comment = $"Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}"
+                        }
+                    }
+                }
+            };
+
+            return patchDocument;
+        }
+
         public static JsonPatchDocument ToPatchDocument(this WorkItemModel model, string ProjectName, WorkItem parent = null)
         {
             var workItemType = "User Story";
@@ -48,6 +71,9 @@ namespace AzureDevopsClient
             var state = model.State;
             if (model.State == "In Progress" || model.State == "Committed")
                 state = "Active";
+
+            if (model.State == "To Do")
+                state = "New";
 
             var patchDocument = new JsonPatchDocument
             {
@@ -85,7 +111,7 @@ namespace AzureDevopsClient
                 },
                 new JsonPatchOperation()
                 {
-                    Operation = Operation.Add, Path="/fields/System.Description", Value = $"<pre>Ported by tfs-to-devops @ {DateTime.Now:F}{Environment.NewLine}</pre><br>{model.HtmlDescription}"
+                    Operation = Operation.Add, Path="/fields/System.Description", Value = $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
                 },
             };
 

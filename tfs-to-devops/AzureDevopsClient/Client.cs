@@ -7,7 +7,12 @@ using Microsoft.VisualStudio.Services.WebApi;
 using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
+using Microsoft.TeamFoundation.WorkItemTracking.Client;
+using AttachmentReference = Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.AttachmentReference;
+using WorkItem = Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItem;
 
 namespace AzureDevopsClient
 {
@@ -45,7 +50,7 @@ namespace AzureDevopsClient
         private void createUserStories(WorkItemModel[] stories, WorkItemModel[] task)
         {
             var projectId = projectClient.GetProject(ProjectName).Result.Id;
-            foreach (var workItemModel in stories.Where(x => x.Tasks.Any() && x.AssignedTo.Contains("Andreas")))
+            foreach (var workItemModel in stories.Where(x => x.Tasks.Any() && x.HasAttachments))
             {
                 var patchDocument = workItemModel.ToPatchDocument(ProjectName);
                 var newWorkItem = createWorkItemInAzure(patchDocument, projectId, "User Story");
@@ -56,19 +61,61 @@ namespace AzureDevopsClient
                     {
                         var childPatchDocument = itemModel.ToPatchDocument(ProjectName, newWorkItem);
                         var childWorkItem = createWorkItemInAzure(childPatchDocument, projectId, "Task");
-
-                        createWorkItemLinkToParentInAzure(newWorkItem, childWorkItem, projectId);
+                        if (childWorkItem == null)
+                            continue;
+                        CreateWorkItemLinkToParentInAzure(newWorkItem, childWorkItem, projectId);
                     }
                 }
+
+                if (workItemModel.HasAttachments && newWorkItem != null)
+                {
+                    foreach (Attachment attachment in workItemModel.Attachments)
+                    {
+                        var attachmentRef = createAttachmentReference(attachment);
+                        if(attachmentRef == null)
+                            continue;
+                        
+                        var attachmentPatch = attachmentRef.ToPatchDocument();
+                        UpdateWorkItem(attachmentPatch, projectId, newWorkItem.Id.Value);
+                    }
+                }
+
+                if(newWorkItem != null)
+                    Logger.Info($"{GetType()} Saved {workItemModel.Title} [{newWorkItem.Id}] with {workItemModel.Tasks.Count()} task(s) and {workItemModel.Attachments.Count} attachment(s)'");
             }
         }
 
-        private void createWorkItemLinkToParentInAzure(WorkItem parent, WorkItem child, Guid projectId)
+        private AttachmentReference createAttachmentReference(Attachment attachment)
+        {
+            var fileName = Path.Combine(Path.GetTempPath(), attachment.Name);
+            try
+            {
+                using (var client = new WebClient())
+                {
+                    client.UseDefaultCredentials = true;
+                    client.DownloadFile(attachment.Uri, fileName);
+                }
+
+                var attachmentRef = workClient.CreateAttachmentAsync(fileName).Result;
+
+                File.Delete(fileName);
+
+                return attachmentRef;
+            }
+            catch (Exception e)
+            {
+                Logger.Error($"{GetType()} Failed downloading attachment from {attachment.Uri} to {fileName}{Environment.NewLine}\t{e.Message}");
+            }
+
+            return null;
+        }
+
+        private void CreateWorkItemLinkToParentInAzure(WorkItem parent, WorkItem child, Guid projectId)
         {
             try
             {
                 var linkFromParentToChild = child.GetParentLinkPatch();
-                var result = workClient.UpdateWorkItemAsync(linkFromParentToChild, projectId, parent.Id.Value, false, true).Result;
+                UpdateWorkItem(linkFromParentToChild, projectId, parent.Id.Value, false, false);
             }
             catch (Exception e)
             {
@@ -76,12 +123,35 @@ namespace AzureDevopsClient
             }
         }
 
-        private WorkItem createWorkItemInAzure(JsonPatchDocument patchDocument, Guid projectId, string workItemType)
+        private WorkItem UpdateWorkItem(JsonPatchDocument patch, Guid projectId, int workItemId, bool validateOnly = false,
+            bool ignoreRules = false)
         {
             try
             {
-                var res = workClient.CreateWorkItemAsync(patchDocument, projectId, workItemType, false, true).Result;
-                Logger.Info($"{GetType()} Saved {workItemType} {patchDocument.FirstOrDefault(x => x.Path.Contains("System.Title"))?.Value}'");
+                return workClient.UpdateWorkItemAsync(patch, projectId, workItemId, validateOnly, ignoreRules).Result;
+            }
+            catch (Exception e)
+            {
+                var errorMessage = e.Message;
+                if (e.InnerException != null && e.InnerException is RuleValidationException)
+                {
+                    var ruleValidationEx = (RuleValidationException)e.InnerException;
+                    errorMessage = string.Join($"{Environment.NewLine}\t",
+                        ruleValidationEx.RuleValidationErrors.Select(x => x.ErrorMessage));
+                }
+
+                Logger.Error($"{GetType()} Failed patching item with Id '{workItemId}'{Environment.NewLine}\t{errorMessage}");
+            }
+
+            return null;
+        }
+
+        private WorkItem createWorkItemInAzure(JsonPatchDocument patchDocument, Guid projectId, string workItemType, bool validateOnly = false,
+            bool ignoreRules = false)
+        {
+            try
+            {
+                var res = workClient.CreateWorkItemAsync(patchDocument, projectId, workItemType, validateOnly, ignoreRules).Result;
                 return res;
             }
             catch (Exception e)
@@ -94,7 +164,7 @@ namespace AzureDevopsClient
                         ruleValidationEx.RuleValidationErrors.Select(x => x.ErrorMessage));
                 }
 
-                Logger.Error($"{GetType()} Failed saving {workItemType} {patchDocument.FirstOrDefault(x => x.Path.Contains("System.Title"))?.Value}'{Environment.NewLine}\t{errorMessage}");
+                Logger.Error($"{GetType()} Failed creating {workItemType} {patchDocument.FirstOrDefault(x => x.Path.Contains("System.Title"))?.Value}'{Environment.NewLine}\t{errorMessage}");
             }
 
             return null;
