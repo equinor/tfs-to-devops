@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Common;
+﻿using Common;
 using Microsoft.TeamFoundation.Core.WebApi;
-using Microsoft.TeamFoundation.Core.WebApi.Types;
-using Microsoft.VisualStudio.Services.Common;
-using Microsoft.VisualStudio.Services.Client;
-using Microsoft.TeamFoundation.SourceControl.WebApi;
-using Microsoft.TeamFoundation.Work.WebApi;
-using Microsoft.TeamFoundation.WorkItemTracking.Client;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
+using Microsoft.VisualStudio.Services.Client;
 using Microsoft.VisualStudio.Services.WebApi;
+using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace AzureDevopsClient
 {
@@ -40,11 +36,116 @@ namespace AzureDevopsClient
 
         public override void CreateWorkitems(Dictionary<string, WorkItemModel[]> workitems)
         {
+            //workClient.CreateWorkItemAsync().Result
+            //GetWorkItemsWithLinksAndAttachments();
 
+            createUserStories(workitems["Product Backlog Item"], workitems["Task"]);
         }
 
+        private void createUserStories(WorkItemModel[] stories, WorkItemModel[] task)
+        {
+            var projectId = projectClient.GetProject(ProjectName).Result.Id;
+            foreach (var workItemModel in stories.Where(x => x.Tasks.Any() && x.AssignedTo.Contains("Andreas")))
+            {
+                var patchDocument = workItemModel.ToPatchDocument(ProjectName);
+                var newWorkItem = createWorkItemInAzure(patchDocument, projectId, "User Story");
+
+                if (workItemModel.Tasks.Any() && newWorkItem != null)
+                {
+                    foreach (var itemModel in workItemModel.Tasks)
+                    {
+                        var childPatchDocument = itemModel.ToPatchDocument(ProjectName, newWorkItem);
+                        var childWorkItem = createWorkItemInAzure(childPatchDocument, projectId, "Task");
+
+                        createWorkItemLinkToParentInAzure(newWorkItem, childWorkItem, projectId);
+                    }
+                }
+            }
+        }
+
+        private void createWorkItemLinkToParentInAzure(WorkItem parent, WorkItem child, Guid projectId)
+        {
+            try
+            {
+                var linkFromParentToChild = child.GetParentLinkPatch();
+                var result = workClient.UpdateWorkItemAsync(linkFromParentToChild, projectId, parent.Id.Value, false, true).Result;
+            }
+            catch (Exception e)
+            {
+                Logger.Error($"{GetType()} Failed saving workitem relation from '{parent.Id}' to '{child.Id}'{Environment.NewLine}\t{e.Message}");
+            }
+        }
+
+        private WorkItem createWorkItemInAzure(JsonPatchDocument patchDocument, Guid projectId, string workItemType)
+        {
+            try
+            {
+                var res = workClient.CreateWorkItemAsync(patchDocument, projectId, workItemType, false, true).Result;
+                Logger.Info($"{GetType()} Saved {workItemType} {patchDocument.FirstOrDefault(x => x.Path.Contains("System.Title"))?.Value}'");
+                return res;
+            }
+            catch (Exception e)
+            {
+                var errorMessage = e.Message;
+                if (e.InnerException != null && e.InnerException is RuleValidationException)
+                {
+                    var ruleValidationEx = (RuleValidationException) e.InnerException;
+                    errorMessage = string.Join($"{Environment.NewLine}\t",
+                        ruleValidationEx.RuleValidationErrors.Select(x => x.ErrorMessage));
+                }
+
+                Logger.Error($"{GetType()} Failed saving {workItemType} {patchDocument.FirstOrDefault(x => x.Path.Contains("System.Title"))?.Value}'{Environment.NewLine}\t{errorMessage}");
+            }
+
+            return null;
+        }
+
+        private IEnumerable<int> createTasks()
+        {
+            return new List<int>();
+        }
+
+        public void GetWorkItemsWithLinksAndAttachments()
+        {
+            var projectId = projectClient.GetProject(ProjectName).Result.Id;
+
+            int[] workitemIds = new int[] { 1, 2 };
+
+            var workitems = workClient.GetWorkItemsAsync(projectId, workitemIds, expand: WorkItemExpand.All).Result;
+            Logger.Info("*** DEBUG LOG ***");
+
+            foreach (var workitem in workitems)
+            {
+                Logger.Info($"WorkItem Id:{workitem.Id} Url:{workitem.Url}");
+                Logger.Info("Fields:");
+
+                foreach (var workitemField in workitem.Fields)
+                {
+                    if (workitemField.Value is Microsoft.VisualStudio.Services.WebApi.IdentityRef)
+                    {
+                        Logger.Info($"\t\tKey: '{workitemField.Key}' IdentityRef.DisplayName: '{(workitemField.Value as IdentityRef).DisplayName}'");
+                    }
+                    else
+                    {
+                        Logger.Info($"\t\tKey: '{workitemField.Key}' Value: '{workitemField.Value}'");
+                    }
+                }
+                Logger.Info("Relations:");
+                foreach (var workitemRelation in workitem.Relations)
+                {
+                    Logger.Info($"\tTitle: '{workitemRelation.Title}' Url: '{workitemRelation.Url}'");
+                    Logger.Info($"\tAttributes:");
+                    foreach (var attribute in workitemRelation.Attributes)
+                    {
+                        Logger.Info($"\t\tKey: '{attribute.Key}' Value: '{attribute.Value}'");
+                    }
+                }
+            }
+        }
+
+
         public override void CreateIterations(IEnumerable<Iteration> iterations)
-        {   
+        {
             var groups = iterations.GroupBy(x => x.IterationPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.Select(x => x.IterationPath).OrderBy(x => x).ToList()).OrderBy(d => d.Key);
             CreateAndSaveClassificationNodes(groups, TreeNodeStructureType.Iteration);
         }
@@ -151,7 +252,7 @@ namespace AzureDevopsClient
                     projectId.ToString(),
                     structureGroup,
                     pathToParent).Result;
-                
+
                 Logger.Info($"{GetType()} Saved type {structureGroup} '{pathToParent}\\{classificationNode.Name}'");
             }
             catch (Exception)
