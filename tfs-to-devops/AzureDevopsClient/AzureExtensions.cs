@@ -65,15 +65,10 @@ namespace AzureDevopsClient
         public static JsonPatchDocument ToPatchDocument(this WorkItemModel model, string ProjectName, WorkItem parent = null)
         {
             var workItemType = "User Story";
+            if (model.Type == "Bug")
+                workItemType = "Bug";
             if (parent != null)
                 workItemType = "Task";
-
-            var state = model.State;
-            if (model.State == "In Progress" || model.State == "Committed")
-                state = "Active";
-
-            if (model.State == "To Do")
-                state = "New";
 
             var patchDocument = new JsonPatchDocument
             {
@@ -95,7 +90,7 @@ namespace AzureDevopsClient
                 },
                 new JsonPatchOperation()
                 {
-                    Operation = Operation.Add, Path="/fields/System.State", Value = state
+                    Operation = Operation.Add, Path="/fields/System.State", Value = model.State
                 },
                 new JsonPatchOperation()
                 {
@@ -111,10 +106,40 @@ namespace AzureDevopsClient
                 },
                 new JsonPatchOperation()
                 {
-                    Operation = Operation.Add, Path="/fields/System.Description", Value = $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
-                },
+                    Operation = Operation.Add, Path="/fields/System.Tags", Value = model.Tags
+                }
             };
 
+            if (model.Type == "Bug")
+            {
+                patchDocument.Add(new JsonPatchOperation()
+                {
+                    Operation = Operation.Add,
+                    Path = "/fields/Microsoft.VSTS.TCM.ReproSteps",
+                    Value =
+                            $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
+                });
+            }
+            else if (model.Type == "Product Backlog Item")
+            {
+                patchDocument.Add(new JsonPatchOperation()
+                {
+                    Operation = Operation.Add,
+                    Path = "/fields/System.Description",
+                    Value =
+                        $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
+                });
+            }
+            //else if (model.Type == "Test Case")
+            //{
+            //    patchDocument.Add(new JsonPatchOperation()
+            //    {
+            //        Operation = Operation.Add,
+            //        Path = "/fields/Microsoft.VSTS.TCM.Steps",
+            //        Value =
+            //            $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
+            //    });
+            //}
             if (parent != null)
             {
                 // Relation from Child -> Parent

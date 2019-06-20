@@ -44,23 +44,57 @@ namespace AzureDevopsClient
             //workClient.CreateWorkItemAsync().Result
             //GetWorkItemsWithLinksAndAttachments();
 
-            createUserStories(workitems["Product Backlog Item"], workitems["Task"]);
+            //var userStories = workitems["Product Backlog Item"];
+            //var statesUserStories = string.Join(Environment.NewLine, userStories.Select(x => x.State).Distinct().OrderBy(x => x));
+
+            //var tasks = workitems["Task"];
+            //var statesTasks = string.Join(Environment.NewLine, tasks.Select(x => x.State).Distinct().OrderBy(x => x));
+
+            //Logger.Warning($"User story states: {Environment.NewLine}{statesUserStories}");
+            //Logger.Warning($"Task states: {Environment.NewLine}{statesTasks}");
+
+            CreateTests(workitems["Test Case"]);
+
+            CreateUserStories(workitems["Product Backlog Item"], "User Story");
+
+            CreateUserStories(workitems["Bug"], "Bug");
+
+            var projectId = projectClient.GetProject(ProjectName).Result.Id;
+            var fields = workClient.GetFieldsAsync(projectId, GetFieldsExpand.ExtensionFields).Result;
+
+            foreach (var field in fields)
+            {
+                Logger.Warning($"{field.Name};{field.ReferenceName};{field.Type}");
+            }
+            
+            
+
         }
 
-        private void createUserStories(WorkItemModel[] stories, WorkItemModel[] task)
+        private void CreateTests(WorkItemModel[] tests)
         {
+            var testPaths = tests.Select(x => x.AreaPath).Distinct().OrderBy(x => x).ToList();
+
+            var testIterations = tests.Select(x => x.IterationPath).Distinct().OrderBy(x => x).ToList();
+            
+        }
+
+        private void CreateUserStories(WorkItemModel[] stories, string storyType)
+        {
+            Logger.Info($"{GetType()} Creating {storyType} entries {Environment.NewLine}");
+            
             var projectId = projectClient.GetProject(ProjectName).Result.Id;
-            foreach (var workItemModel in stories.Where(x => x.Tasks.Any() && x.HasAttachments))
+            foreach (var workItemModel in stories)
             {
                 var patchDocument = workItemModel.ToPatchDocument(ProjectName);
-                var newWorkItem = createWorkItemInAzure(patchDocument, projectId, "User Story");
+                var newWorkItem = CreateWorkItemInAzure(patchDocument, projectId, storyType);
 
                 if (workItemModel.Tasks.Any() && newWorkItem != null)
                 {
                     foreach (var itemModel in workItemModel.Tasks)
                     {
                         var childPatchDocument = itemModel.ToPatchDocument(ProjectName, newWorkItem);
-                        var childWorkItem = createWorkItemInAzure(childPatchDocument, projectId, "Task");
+                        var childWorkItem = CreateWorkItemInAzure(childPatchDocument, projectId, "Task");
                         if (childWorkItem == null)
                             continue;
                         CreateWorkItemLinkToParentInAzure(newWorkItem, childWorkItem, projectId);
@@ -71,7 +105,7 @@ namespace AzureDevopsClient
                 {
                     foreach (Attachment attachment in workItemModel.Attachments)
                     {
-                        var attachmentRef = createAttachmentReference(attachment);
+                        var attachmentRef = CreateAttachmentReference(attachment);
                         if(attachmentRef == null)
                             continue;
                         
@@ -85,7 +119,7 @@ namespace AzureDevopsClient
             }
         }
 
-        private AttachmentReference createAttachmentReference(Attachment attachment)
+        private AttachmentReference CreateAttachmentReference(Attachment attachment)
         {
             var fileName = Path.Combine(Path.GetTempPath(), attachment.Name);
             try
@@ -124,7 +158,7 @@ namespace AzureDevopsClient
         }
 
         private WorkItem UpdateWorkItem(JsonPatchDocument patch, Guid projectId, int workItemId, bool validateOnly = false,
-            bool ignoreRules = false)
+            bool ignoreRules = true)
         {
             try
             {
@@ -146,8 +180,8 @@ namespace AzureDevopsClient
             return null;
         }
 
-        private WorkItem createWorkItemInAzure(JsonPatchDocument patchDocument, Guid projectId, string workItemType, bool validateOnly = false,
-            bool ignoreRules = false)
+        private WorkItem CreateWorkItemInAzure(JsonPatchDocument patchDocument, Guid projectId, string workItemType, bool validateOnly = false,
+            bool ignoreRules = true)
         {
             try
             {
@@ -168,11 +202,6 @@ namespace AzureDevopsClient
             }
 
             return null;
-        }
-
-        private IEnumerable<int> createTasks()
-        {
-            return new List<int>();
         }
 
         public void GetWorkItemsWithLinksAndAttachments()

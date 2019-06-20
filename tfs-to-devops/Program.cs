@@ -50,14 +50,10 @@ namespace tfs_to_devops
 
                 Logger.Info($"Export backlogs and workitems{Environment.NewLine}--------------------------------------------------------------------------------");
 
-                Logger.Info($"TFS Server URL:     {tfsServerUrl}");
-                Logger.Info($"TFS Project:        {tfsProject}");
-                Logger.Info($"Azure Server URL:   {azureUrl}");
-                Logger.Info($"Azure Organization: TODO");
-                Logger.Info($"Azure Project:      TODO");
-
-                azureUrl = @"https://dev.azure.com/DispatchMigrationTest";
-                azureProject = "DispatchGit";
+                Logger.Info($"TFS Server URL: {tfsServerUrl}");
+                Logger.Info($"TFS Project:    {tfsProject}");
+                Logger.Info($"Azure URL:      {azureUrl}");
+                Logger.Info($"Azure Project:  {azureProject}");
 
                 var azureClient = new AzureDevopsClient.Client(azureUrl, azureProject);
                 azureClient.Connect();
@@ -142,7 +138,8 @@ namespace tfs_to_devops
             Logger.Error($"  [TfsUrl]   The URL used in Visual Studio, excluding project root");
             Logger.Error($"  [TfsProject] The root (project) that holds backlogs and workitems");
             Logger.Error($"  [AzureUrl] The Azure organization URL (https://dev.azure.com/<Organization>)");
-            Logger.Error($"  [AzureProject] Project found under organization in Azure server URL");
+            Logger.Error($"  [AzureProject] Project found under organization in Azure server URL (https://dev.azure.com/<Organization>/<Project>");
+
             return false;
         }
     }
