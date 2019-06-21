@@ -41,20 +41,6 @@ namespace AzureDevopsClient
 
         public override void CreateWorkitems(Dictionary<string, WorkItemModel[]> workitems)
         {
-            //workClient.CreateWorkItemAsync().Result
-            //GetWorkItemsWithLinksAndAttachments();
-
-            //var userStories = workitems["Product Backlog Item"];
-            //var statesUserStories = string.Join(Environment.NewLine, userStories.Select(x => x.State).Distinct().OrderBy(x => x));
-
-            //var tasks = workitems["Task"];
-            //var statesTasks = string.Join(Environment.NewLine, tasks.Select(x => x.State).Distinct().OrderBy(x => x));
-
-            //Logger.Warning($"User story states: {Environment.NewLine}{statesUserStories}");
-            //Logger.Warning($"Task states: {Environment.NewLine}{statesTasks}");
-
-            CreateTests(workitems["Test Case"]);
-
             CreateUserStories(workitems["Product Backlog Item"], "User Story");
 
             CreateUserStories(workitems["Bug"], "Bug");
@@ -66,17 +52,6 @@ namespace AzureDevopsClient
             {
                 Logger.Warning($"{field.Name};{field.ReferenceName};{field.Type}");
             }
-            
-            
-
-        }
-
-        private void CreateTests(WorkItemModel[] tests)
-        {
-            var testPaths = tests.Select(x => x.AreaPath).Distinct().OrderBy(x => x).ToList();
-
-            var testIterations = tests.Select(x => x.IterationPath).Distinct().OrderBy(x => x).ToList();
-            
         }
 
         private void CreateUserStories(WorkItemModel[] stories, string storyType)
@@ -203,46 +178,7 @@ namespace AzureDevopsClient
 
             return null;
         }
-
-        public void GetWorkItemsWithLinksAndAttachments()
-        {
-            var projectId = projectClient.GetProject(ProjectName).Result.Id;
-
-            int[] workitemIds = new int[] { 1, 2 };
-
-            var workitems = workClient.GetWorkItemsAsync(projectId, workitemIds, expand: WorkItemExpand.All).Result;
-            Logger.Info("*** DEBUG LOG ***");
-
-            foreach (var workitem in workitems)
-            {
-                Logger.Info($"WorkItem Id:{workitem.Id} Url:{workitem.Url}");
-                Logger.Info("Fields:");
-
-                foreach (var workitemField in workitem.Fields)
-                {
-                    if (workitemField.Value is Microsoft.VisualStudio.Services.WebApi.IdentityRef)
-                    {
-                        Logger.Info($"\t\tKey: '{workitemField.Key}' IdentityRef.DisplayName: '{(workitemField.Value as IdentityRef).DisplayName}'");
-                    }
-                    else
-                    {
-                        Logger.Info($"\t\tKey: '{workitemField.Key}' Value: '{workitemField.Value}'");
-                    }
-                }
-                Logger.Info("Relations:");
-                foreach (var workitemRelation in workitem.Relations)
-                {
-                    Logger.Info($"\tTitle: '{workitemRelation.Title}' Url: '{workitemRelation.Url}'");
-                    Logger.Info($"\tAttributes:");
-                    foreach (var attribute in workitemRelation.Attributes)
-                    {
-                        Logger.Info($"\t\tKey: '{attribute.Key}' Value: '{attribute.Value}'");
-                    }
-                }
-            }
-        }
-
-
+        
         public override void CreateIterations(IEnumerable<Iteration> iterations)
         {
             var groups = iterations.GroupBy(x => x.IterationPath.Count(y => y == '\\')).ToDictionary(d => d.Key, d => d.Select(x => x.IterationPath).OrderBy(x => x).ToList()).OrderBy(d => d.Key);
@@ -306,12 +242,12 @@ namespace AzureDevopsClient
 
                                 Logger.Warning($"{GetType()} Child area not found, creating {splitPath[i]} under {previousRoot?.Name}");
 
-                                updateWithChildNode(ref previousRoot, splitPath[i], nodeType);
+                                UpdateWithChildNode(ref previousRoot, splitPath[i], nodeType);
                                 rootArea = previousRoot.Children.SingleOrDefault(x => x.Name == splitPath[i]);
                             }
                         }
 
-                        updateWithChildNode(ref rootArea, pathEnd, nodeType);
+                        UpdateWithChildNode(ref rootArea, pathEnd, nodeType);
                     }
                 }
             }
@@ -322,11 +258,11 @@ namespace AzureDevopsClient
                 if (nodeType == TreeNodeStructureType.Area)
                     treeStructureGroup = TreeStructureGroup.Areas;
 
-                saveClassificationNodesRecursive(projectId, classificationNode, treeStructureGroup);
+                SaveClassificationNodesRecursive(projectId, classificationNode, treeStructureGroup);
             }
         }
 
-        private WorkItemClassificationNode updateWithChildNode(ref WorkItemClassificationNode parent, string childName,
+        private WorkItemClassificationNode UpdateWithChildNode(ref WorkItemClassificationNode parent, string childName,
             TreeNodeStructureType childType)
         {
             var children = parent.Children?.ToList() ?? new List<WorkItemClassificationNode>();
@@ -342,7 +278,7 @@ namespace AzureDevopsClient
             return parent;
         }
 
-        private void saveClassificationNodesRecursive(Guid projectId, WorkItemClassificationNode classificationNode, TreeStructureGroup structureGroup, string pathToParent = null)
+        private void SaveClassificationNodesRecursive(Guid projectId, WorkItemClassificationNode classificationNode, TreeStructureGroup structureGroup, string pathToParent = null)
         {
             try
             {
@@ -365,7 +301,7 @@ namespace AzureDevopsClient
             var newPathToParent = $"{pathToParent}\\{classificationNode.Name}";
             foreach (var classificationNodeChild in classificationNode.Children)
             {
-                saveClassificationNodesRecursive(projectId, classificationNodeChild, structureGroup, newPathToParent);
+                SaveClassificationNodesRecursive(projectId, classificationNodeChild, structureGroup, newPathToParent);
             }
         }
 
