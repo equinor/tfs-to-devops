@@ -9,8 +9,8 @@ tfs-to-devops export [TfsUrl] [TfsProject] [AzureUrl] [AzureProject]
 ```
 [TfsUrl]       The URL used in Visual Studio, excluding project root
 [TfsProject]   The root (project) that holds backlogs and workitems
-[AzureUrl]     The Azure organization URL (https://dev.azure.com/**<Organization>**)
-[AzureProject] Project found under organization in Azure server URL (https://dev.azure.com/<Organization>/**<Project>**)
+[AzureUrl]     The Azure organization URL (https://dev.azure.com/<Organization>)
+[AzureProject] Project found under organization in Azure server URL (https://dev.azure.com/<Organization>/<Project>)
 ```
 ## Export changesets with file changes
 Creates a dump of changesets from a given branch and date period. One folder for each changeset, includes diffable versions of all changed files. Useful for maintaining history of TFS branches when moving to GitHub.
@@ -24,5 +24,5 @@ tfs-to-devops history [TfsUrl] [TfsBranchPath] [DateFrom] [DateTo] [Path]
 [TfsBranchPath]       Path to branch, excluding project
 [DateFrom DD.MM.YYYY] Date to start pulling changesets
 [DateTo DD.MM.YYYY]   Date to stop pulling changesets
-[Path]                Path to store changesets (**will be emptied**)
+[Path]                Path to store changesets (will be emptied)
 ```
