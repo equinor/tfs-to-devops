@@ -4,7 +4,9 @@ Migration tool that accomplishes two tasks relevant for moving from TFS to Azure
 ## Export workitems, backlogs, iterations etc
 ```bash
 tfs-to-devops export [TfsUrl] [TfsProject] [AzureUrl] [AzureProject]
+```
 
+```
 [TfsUrl]   The URL used in Visual Studio, excluding project root
 [TfsProject] The root (project) that holds backlogs and workitems
 [AzureUrl] The Azure organization URL (https://dev.azure.com/<Organization>
