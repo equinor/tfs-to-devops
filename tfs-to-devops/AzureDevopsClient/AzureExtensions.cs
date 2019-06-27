@@ -70,6 +70,17 @@ namespace AzureDevopsClient
             if (parent != null)
                 workItemType = "Task";
 
+            var azurePriority = 5;
+
+            if (model.BacklogPriority > 0 && model.BacklogPriority < 1000)
+                azurePriority = 1;
+            else if (model.BacklogPriority >= 1000 && model.BacklogPriority < 10000)
+                azurePriority = 2;
+            else if(model.BacklogPriority >= 10000 && model.BacklogPriority < 100000)
+                azurePriority = 3;
+            else if (model.BacklogPriority >= 100000 && model.BacklogPriority < 500000)
+                azurePriority = 4;
+
             var patchDocument = new JsonPatchDocument
             {
                 new JsonPatchOperation()
@@ -128,6 +139,13 @@ namespace AzureDevopsClient
                     Path = "/fields/System.Description",
                     Value =
                         $"<pre>Ported by tfs-to-devops @ {DateTime.Now:dd-MMM-yyyy HH:mm:ss}{Environment.NewLine}</pre><p><hr></p>{model.HtmlDescription}"
+                });
+
+                patchDocument.Add(new JsonPatchOperation()
+                {
+                    Operation = Operation.Add,
+                    Path = "/fields/Microsoft.VSTS.Common.Priority",
+                    Value = azurePriority
                 });
             }
             //else if (model.Type == "Test Case")

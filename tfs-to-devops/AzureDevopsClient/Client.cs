@@ -241,9 +241,16 @@ namespace AzureDevopsClient
                                     azureClassificationNodes.SingleOrDefault(x => x.Name == splitPath[i - 1]);
 
                                 Logger.Warning($"{GetType()} Child area not found, creating {splitPath[i]} under {previousRoot?.Name}");
-
-                                UpdateWithChildNode(ref previousRoot, splitPath[i], nodeType);
-                                rootArea = previousRoot.Children.SingleOrDefault(x => x.Name == splitPath[i]);
+                                try
+                                {
+                                    UpdateWithChildNode(ref previousRoot, splitPath[i], nodeType);
+                                    rootArea = previousRoot.Children.SingleOrDefault(x => x.Name == splitPath[i]);
+                                }
+                                catch (Exception e)
+                                {
+                                    Logger.Error($"{GetType()} Failed creating child area, error message below:{Environment.NewLine}{e.Message}{Environment.NewLine}{e.StackTrace}");
+                                    Logger.Error($"{GetType()} Try to create the area manually in Azure and run the export again");
+                                }
                             }
                         }
 
