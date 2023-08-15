@@ -186,9 +186,9 @@ namespace Tfs2015Client
             setTasks();
         }
 
-        private static WorkItemLinkInfo[] getAllLinks()
+        private WorkItemLinkInfo[] getAllLinks()
         {
-            var queryString = "Select Id From WorkItemLinks WHERE Source.[System.TeamProject] = 'Statoil.Dispatch'";
+            var queryString = $"Select Id From WorkItemLinks WHERE Source.[System.TeamProject] = '{ProjectName}'";
             var query = new Query(store, queryString);
 
             return query.RunLinkQuery();
